@@ -1,0 +1,167 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import type { AgentManifest, CreateRunInput, RunDto, RunStatus } from '@agentinfra/shared-types';
+import { PrismaService } from '../prisma/prisma.service';
+import { MockDriver } from './mock-driver';
+
+@Injectable()
+export class RunsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly driver: MockDriver,
+  ) {}
+
+  async create(agentName: string, input: CreateRunInput): Promise<RunDto> {
+    const agent = await this.prisma.agent.findUnique({
+      where: { name: agentName },
+      include: {
+        versions: input.version
+          ? { where: { version: input.version } }
+          : { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    });
+    if (!agent) throw new NotFoundException(`agent "${agentName}" not found`);
+    const version = agent.versions[0];
+    if (!version) {
+      throw new NotFoundException(
+        input.version
+          ? `version ${input.version} not found for ${agentName}`
+          : `agent "${agentName}" has no versions yet`,
+      );
+    }
+
+    const run = await this.prisma.run.create({
+      data: {
+        agentId: agent.id,
+        agentVersionId: version.id,
+        status: 'pending',
+      },
+    });
+
+    // Start asynchronously via driver; don't await full lifecycle.
+    const manifest: AgentManifest = {
+      name: agent.name,
+      version: version.version,
+      image: version.image,
+      entrypoint: (version.entrypoint as string[]) ?? [],
+      env: { ...((version.env as Record<string, string>) ?? {}), ...(input.env ?? {}) },
+      resources: (version.resources as { cpu: string; memory: string }) ?? {
+        cpu: '500m',
+        memory: '512Mi',
+      },
+    };
+
+    void this.driver
+      .start(run.id, manifest)
+      .then(async (h) => {
+        await this.prisma.run.update({
+          where: { id: run.id },
+          data: {
+            status: h.status,
+            containerId: h.containerId ?? null,
+            startedAt: h.startedAt ? new Date(h.startedAt) : null,
+          },
+        });
+        // Poll driver until terminal state and sync DB.
+        void this.pollUntilDone(run.id);
+      })
+      .catch(async (err: Error) => {
+        await this.prisma.run.update({
+          where: { id: run.id },
+          data: { status: 'failed', errorMessage: err.message, finishedAt: new Date() },
+        });
+      });
+
+    return this.toDto({
+      ...run,
+      agentName: agent.name,
+      agentVersion: version.version,
+    });
+  }
+
+  async findByAgent(agentName: string): Promise<RunDto[]> {
+    const agent = await this.prisma.agent.findUnique({
+      where: { name: agentName },
+      include: {
+        runs: { orderBy: { createdAt: 'desc' }, include: { agentVersion: true } },
+      },
+    });
+    if (!agent) throw new NotFoundException(`agent "${agentName}" not found`);
+    return agent.runs.map((r) =>
+      this.toDto({ ...r, agentName: agent.name, agentVersion: r.agentVersion.version }),
+    );
+  }
+
+  async findOne(runId: string): Promise<RunDto> {
+    const run = await this.prisma.run.findUnique({
+      where: { id: runId },
+      include: { agent: true, agentVersion: true },
+    });
+    if (!run) throw new NotFoundException(`run ${runId} not found`);
+    return this.toDto({
+      ...run,
+      agentName: run.agent.name,
+      agentVersion: run.agentVersion.version,
+    });
+  }
+
+  async stop(runId: string): Promise<RunDto> {
+    const run = await this.prisma.run.findUnique({ where: { id: runId } });
+    if (!run) throw new NotFoundException(`run ${runId} not found`);
+    await this.driver.stop(runId);
+    const updated = await this.prisma.run.update({
+      where: { id: runId },
+      data: { status: 'stopped', finishedAt: new Date() },
+    });
+    return this.findOne(updated.id);
+  }
+
+  private async pollUntilDone(runId: string): Promise<void> {
+    const terminal: RunStatus[] = ['succeeded', 'failed', 'stopped'];
+    // Simple loop with bounded attempts to avoid runaway.
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      let h;
+      try {
+        h = await this.driver.status(runId);
+      } catch {
+        return;
+      }
+      await this.prisma.run.update({
+        where: { id: runId },
+        data: {
+          status: h.status,
+          finishedAt: h.finishedAt ? new Date(h.finishedAt) : null,
+          exitCode: h.exitCode ?? null,
+          errorMessage: h.errorMessage ?? null,
+        },
+      });
+      if (terminal.includes(h.status)) return;
+    }
+  }
+
+  private toDto(r: {
+    id: string;
+    agentName: string;
+    agentVersion: string;
+    status: RunStatus;
+    containerId: string | null;
+    startedAt: Date | null;
+    finishedAt: Date | null;
+    exitCode: number | null;
+    errorMessage: string | null;
+    createdAt: Date;
+  }): RunDto {
+    return {
+      id: r.id,
+      agentName: r.agentName,
+      agentVersion: r.agentVersion,
+      status: r.status,
+      containerId: r.containerId,
+      startedAt: r.startedAt?.toISOString() ?? null,
+      finishedAt: r.finishedAt?.toISOString() ?? null,
+      exitCode: r.exitCode,
+      errorMessage: r.errorMessage,
+      createdAt: r.createdAt.toISOString(),
+    };
+  }
+}
