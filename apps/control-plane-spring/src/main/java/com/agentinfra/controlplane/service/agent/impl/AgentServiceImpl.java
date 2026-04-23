@@ -25,7 +25,6 @@ import java.util.List;
 @Service
 public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent> implements AgentService {
 
-    @Autowired
     @Resource
     AgentVersionService agentVersionService;
 
@@ -59,13 +58,14 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent> implements
         List<Agent> agents = getBaseMapper().selectList(new LambdaQueryWrapper<Agent>().orderByDesc(Agent::getCreatedAt));
 
         return agents.stream().map(a -> {
+            AgentVersion agentVersion = agentVersionService.getBaseMapper().selectOne(new LambdaQueryWrapper<AgentVersion>().eq(AgentVersion::getAgentId, a.getId()).orderByDesc(AgentVersion::getCreatedAt));
             return CreateAgentResponse.builder()
                     .id(a.getId())
                     .name(a.getName())
                     .description(a.getDescription())
                     .createdAt(a.getCreatedAt().toString())
                     .updatedAt(a.getUpdatedAt().toString())
-                    .latestVersion(null)  // 第三阶段再查版本
+                    .latestVersion(agentVersion != null ? agentVersion.getVersion() : null)
                     .build();
         }).toList();
     }
@@ -117,7 +117,16 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent> implements
         agentVersion.setEnv(JSONUtil.toJson(request.getEnv()));
         agentVersion.setResources(JSONUtil.toJson(request.getResources()));
         agentVersionService.getBaseMapper().insert(agentVersion);
-        return VersionResponse.builder().build();
+        return VersionResponse.builder()
+                .id(agentVersion.getId())
+                .agentId(agentVersion.getAgentId())
+                .version(agentVersion.getVersion())
+                .image(agentVersion.getImage())
+                .entrypoint(agentVersion.getEntrypoint())
+                .env(agentVersion.getEnv())
+                .resources(agentVersion.getResources())
+                .createdAt(agentVersion.getCreatedAt().toString())
+                .build();
     }
 
     @Override

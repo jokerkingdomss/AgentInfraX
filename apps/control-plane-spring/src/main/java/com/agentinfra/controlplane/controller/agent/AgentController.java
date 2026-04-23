@@ -2,10 +2,12 @@ package com.agentinfra.controlplane.controller.agent;
 
 import com.agentinfra.controlplane.dto.agent.CreateAgentRequest;
 import com.agentinfra.controlplane.dto.agent.CreateAgentResponse;
+import com.agentinfra.controlplane.dto.agent.CreateVersionRequest;
+import com.agentinfra.controlplane.dto.agent.VersionResponse;
 import com.agentinfra.controlplane.service.agent.AgentService;
 import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,4 +39,15 @@ public class AgentController {
     public void remove(@PathVariable String name) {
         agentService.remove(name);
     }
+
+    @PostMapping("/{name}/version/add")
+    public VersionResponse addVersion(@PathVariable String name,
+                                      @Valid @RequestBody CreateVersionRequest request) {
+        return agentService.addVersion(name, request);
+    }
+    @GetMapping("/{name}/version/list")
+    public List<VersionResponse> listVersion(@PathVariable String name) {
+        return agentService.listVersion(name);
+    }
+
 }
