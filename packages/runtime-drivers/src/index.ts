@@ -29,3 +29,6 @@ export interface RuntimeDriver {
   /** Stream (or batch-fetch) logs; implementation detail left to driver. */
   logs(runId: string, opts?: { follow?: boolean; tailLines?: number }): AsyncIterable<string>;
 }
+
+export { DockerDriver } from './docker-driver.js';
+export type { DockerDriverOptions } from './docker-driver.js';

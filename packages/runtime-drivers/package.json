@@ -8,10 +8,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
@@ -20,9 +23,11 @@
     "test": "echo \"(no tests yet)\""
   },
   "dependencies": {
-    "@agentinfra/shared-types": "workspace:*"
+    "@agentinfra/shared-types": "workspace:*",
+    "dockerode": "^4.0.10"
   },
   "devDependencies": {
+    "@types/dockerode": "^4.0.1",
     "typescript": "^5.5.3"
   }
 }

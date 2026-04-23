@@ -1,0 +1,23 @@
+server:
+  port: 3002
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: agentinfra-control-plane
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/agentinfra?stringtype=unspecified
+    username: agentinfra
+    password: agentinfra
+    driver-class-name: org.postgresql.Driver
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: input
+      table-prefix: ""

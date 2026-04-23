@@ -1,14 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AgentManifest, CreateRunInput, RunDto, RunStatus } from '@agentinfra/shared-types';
+import type { RuntimeDriver } from '@agentinfra/runtime-drivers';
 import { PrismaService } from '../prisma/prisma.service';
-import { MockDriver } from './mock-driver';
+import { RUNTIME_DRIVER } from './constants';
 
 @Injectable()
 export class RunsService {
+  private readonly logger = new Logger(RunsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly driver: MockDriver,
-  ) {}
+    @Inject(RUNTIME_DRIVER) private readonly driver: RuntimeDriver,
+  ) {
+    this.logger.log(`Using runtime driver: ${this.driver.name}`);
+  }
 
   async create(agentName: string, input: CreateRunInput): Promise<RunDto> {
     const agent = await this.prisma.agent.findUnique({

@@ -2,6 +2,10 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
 
 export function CreateAgentForm() {
   const router = useRouter();
@@ -26,45 +30,43 @@ export function CreateAgentForm() {
   };
 
   return (
-    <form onSubmit={onSubmit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="agent-name (lowercase, hyphens)"
-        required
-        style={inputStyle}
-      />
-      <input
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="description (optional)"
-        style={{ ...inputStyle, flex: 1, minWidth: 200 }}
-      />
-      <button type="submit" disabled={pending} style={btnStyle}>
-        {pending ? 'creating…' : 'create'}
-      </button>
+    <form onSubmit={onSubmit}>
+      <div className="grid grid-cols-[180px_1fr_auto] items-end gap-3">
+        <div>
+          <Label htmlFor="name" className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+            Name <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="my-agent"
+            required
+            aria-required="true"
+            className="bg-[var(--background)] font-mono text-sm"
+          />
+        </div>
+        <div>
+          <Label htmlFor="desc" className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+            Description
+          </Label>
+          <Input
+            id="desc"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="What does this agent do? (optional)"
+            className="bg-[var(--background)] text-sm"
+          />
+        </div>
+        <Button type="submit" disabled={pending} className="press-scale h-9 min-w-[80px] px-4 text-sm">
+          {pending ? (
+            <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Creating…</>
+          ) : 'Create'}
+        </Button>
+      </div>
       {error && (
-        <div style={{ width: '100%', color: '#ffb4b4', fontSize: '0.85rem' }}>{error}</div>
+        <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>
       )}
     </form>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  background: '#15181d',
-  border: '1px solid #2a2f37',
-  color: '#e6e6e6',
-  padding: '0.5rem 0.75rem',
-  borderRadius: 6,
-  fontSize: '0.9rem',
-};
-
-const btnStyle: React.CSSProperties = {
-  background: '#4f9cff',
-  border: 'none',
-  color: '#0b0d10',
-  padding: '0.5rem 1.25rem',
-  borderRadius: 6,
-  fontWeight: 600,
-  cursor: 'pointer',
-};

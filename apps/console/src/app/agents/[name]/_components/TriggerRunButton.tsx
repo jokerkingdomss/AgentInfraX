@@ -2,6 +2,8 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Loader2, Play } from 'lucide-react';
 
 export function TriggerRunButton({
   agentName,
@@ -30,23 +32,23 @@ export function TriggerRunButton({
   };
 
   return (
-    <div>
-      <button onClick={onClick} disabled={pending || disabled} style={btnStyle} title={disabled ? 'add a version first' : ''}>
-        {pending ? 'triggering…' : 'trigger run'}
-      </button>
+    <div className="flex items-center gap-2">
       {error && (
-        <div style={{ color: '#ffb4b4', fontSize: '0.8rem', marginTop: 4 }}>{error}</div>
+        <span role="alert" className="text-xs text-destructive">{error}</span>
       )}
+      <Button
+        onClick={onClick}
+        disabled={pending || disabled}
+        size="sm"
+        title={disabled ? 'Add a version first' : ''}
+        className="press-scale min-w-[110px]"
+      >
+        {pending ? (
+          <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Running…</>
+        ) : (
+          <><Play className="mr-1.5 h-3.5 w-3.5" />Trigger Run</>
+        )}
+      </Button>
     </div>
   );
 }
-
-const btnStyle: React.CSSProperties = {
-  background: '#4ac96b',
-  border: 'none',
-  color: '#0b0d10',
-  padding: '0.5rem 1.25rem',
-  borderRadius: 6,
-  fontWeight: 600,
-  cursor: 'pointer',
-};

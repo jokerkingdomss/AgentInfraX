@@ -1,28 +1,203 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), ui-monospace, monospace;
+}
+
 :root {
-  --bg: #0b0d10;
-  --fg: #e6e6e6;
-  --accent: #4f9cff;
+  /* Emil: custom easing curves — built-in CSS easings are too weak */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Warm charcoal palette — not pure black, not cold gray */
+  --background: #0a0a0c;
+  --foreground: #ececef;
+  --card: #111114;
+  --card-foreground: #ececef;
+  --popover: #111114;
+  --popover-foreground: #ececef;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #161619;
+  --secondary-foreground: #ececef;
+  --muted: #161619;
+  --muted-foreground: #6b6b76;
+  --accent: #1c1c20;
+  --accent-foreground: #ececef;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #1e1e22;
+  --input: #1e1e22;
+  --ring: #3b82f6;
+
+  --status-success: #34d399;
+  --status-warning: #fbbf24;
+  --status-danger: #f87171;
+  --status-neutral: #6b6b76;
+
+  /* Elevation shadows — card hierarchy */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(59, 130, 246, 0.15);
 }
 
-* {
-  box-sizing: border-box;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: rgba(59, 130, 246, 0.25);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+  }
 }
 
-html,
-body {
-  padding: 0;
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    Segoe UI,
-    Roboto,
-    sans-serif;
+/* ── Status dot ── */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.status-dot-pulse {
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
-a {
-  color: var(--accent);
+/* ── Page entrance — Emil: 300ms ease-out, stagger children ── */
+.fade-in-up {
+  animation: fadeInUp 0.3s var(--ease-out) both;
+}
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .fade-in-up {
+    animation: none;
+    opacity: 1;
+  }
+  .status-dot-pulse {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Focus ring ── */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ── Skip link ── */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 16px;
+}
+
+/* ── Loading spinner ── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 0.6s linear infinite;
+}
+
+/* ── Emil: hover gating for touch devices ── */
+@media (hover: hover) and (pointer: fine) {
+  .hover-card:hover {
+    box-shadow: var(--shadow-card-hover);
+    border-color: rgba(59, 130, 246, 0.25);
+  }
+  .hover-row:hover {
+    background: var(--accent);
+  }
+}
+
+/* ── Emil: button press feedback ── */
+.press-scale {
+  transition: transform 160ms var(--ease-out);
+}
+.press-scale:active {
+  transform: scale(0.97);
 }
