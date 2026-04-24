@@ -17,7 +17,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+    let msg = `${res.status} ${res.statusText}`;
+    try {
+      const json = JSON.parse(text);
+      if (json.message) msg = json.message;
+    } catch {}
+    throw new Error(msg);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -48,4 +53,9 @@ export const api = {
     }),
   getRun: (id: string) => request<RunDto>(`/runs/${id}`),
   stopRun: (id: string) => request<RunDto>(`/runs/${id}/stop`, { method: 'POST' }),
+
+  getRunLogs: (id: string) =>
+    request<Array<{ id: string; runId: string; level: string; message: string; createdAt: string }>>(
+      `/runs/${id}/logs`,
+    ),
 };

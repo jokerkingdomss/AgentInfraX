@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { DM_Sans, DM_Mono } from 'next/font/google';
 import { Bot, LayoutDashboard, Play, ScrollText, Settings } from 'lucide-react';
+import { ToastContainer } from '@/components/ui/toast';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -61,6 +62,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             {children}
           </main>
         </div>
+        <ToastContainer />
       </body>
     </html>
   );

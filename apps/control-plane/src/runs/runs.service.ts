@@ -125,6 +125,9 @@ export class RunsService {
     // Simple loop with bounded attempts to avoid runaway.
     for (let i = 0; i < 120; i++) {
       await new Promise((r) => setTimeout(r, 1000));
+      // If the run was manually stopped, stop polling.
+      const current = await this.prisma.run.findUnique({ where: { id: runId } });
+      if (current?.status === 'stopped') return;
       let h;
       try {
         h = await this.driver.status(runId);

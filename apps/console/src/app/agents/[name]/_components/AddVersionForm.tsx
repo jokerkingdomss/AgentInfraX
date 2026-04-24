@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,11 +13,9 @@ export function AddVersionForm({ agentName }: { agentName: string }) {
   const [pending, startTransition] = useTransition();
   const [version, setVersion] = useState('0.1.0');
   const [image, setImage] = useState('alpine:3.20');
-  const [error, setError] = useState<string | null>(null);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     startTransition(async () => {
       try {
         await api.addVersion(agentName, {
@@ -26,9 +25,10 @@ export function AddVersionForm({ agentName }: { agentName: string }) {
           env: {},
           resources: { cpu: '500m', memory: '512Mi' },
         });
+        toast('success', `Version ${version} added`);
         router.refresh();
       } catch (err) {
-        setError((err as Error).message);
+        toast('error', (err as Error).message);
       }
     });
   };
@@ -59,14 +59,11 @@ export function AddVersionForm({ agentName }: { agentName: string }) {
           className="bg-[var(--background)] font-mono text-sm"
         />
       </div>
-      <Button type="submit" disabled={pending} size="sm" className="press-scale min-w-[64px]">
+      <Button type="submit" disabled={pending} className="press-scale min-w-[64px]">
         {pending ? (
           <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Adding…</>
         ) : 'Add'}
       </Button>
-      {error && (
-        <span role="alert" className="text-xs text-destructive whitespace-nowrap">{error}</span>
-      )}
     </form>
   );
 }

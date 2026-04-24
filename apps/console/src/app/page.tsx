@@ -37,8 +37,8 @@ export default async function AgentsPage() {
       {/* ── STATS ── */}
       <div className="grid grid-cols-3 gap-4">
         <StatCard label="Total Agents" value={agents.length} />
-        <StatCard label="Latest Version" value={agents.length > 0 ? agents[0]?.latestVersion ?? '—' : '—'} />
-        <StatCard label="Runtime" value="Mock" />
+        <StatCard label="Runtime" value={process.env.NEXT_PUBLIC_RUNTIME_DRIVER ?? 'docker'} />
+        <StatCard label="Status" value={error ? 'Offline' : 'Online'} dotColor={error ? 'var(--status-danger)' : 'var(--status-success)'} />
       </div>
 
       {/* ── CREATE AGENT ── */}
@@ -110,14 +110,17 @@ export default async function AgentsPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+function StatCard({ label, value, dotColor }: { label: string; value: string | number; dotColor?: string }) {
   return (
     <div
       className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5"
       style={{ boxShadow: 'var(--shadow-card)' }}
     >
       <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">{value}</div>
+      <div className="mt-2 flex items-center gap-2 text-2xl font-semibold tabular-nums tracking-tight">
+        {dotColor && <span className="status-dot" style={{ color: dotColor }} />}
+        {value}
+      </div>
     </div>
   );
 }

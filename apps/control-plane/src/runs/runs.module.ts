@@ -4,13 +4,16 @@ import type { RuntimeDriver } from '@agentinfra/runtime-drivers';
 import { DockerDriver } from '@agentinfra/runtime-drivers';
 import { MockDriver } from './mock-driver';
 import { RUNTIME_DRIVER } from './constants';
+import { LogsController } from './logs.controller';
+import { LogsService } from './logs.service';
 import { RunsController } from './runs.controller';
 import { RunsService } from './runs.service';
 
 @Module({
-  controllers: [RunsController],
+  controllers: [RunsController, LogsController],
   providers: [
     RunsService,
+    LogsService,
     MockDriver,
     {
       provide: RUNTIME_DRIVER,

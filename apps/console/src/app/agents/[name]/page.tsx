@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { api } from '@/lib/api';
 import { AddVersionForm } from './_components/AddVersionForm';
 import { TriggerRunButton } from './_components/TriggerRunButton';
-import { ArrowLeft, Box, Layers, Play } from 'lucide-react';
+import { ArrowLeft, Box, ChevronRight, Layers, Play } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +53,7 @@ export default async function AgentDetail({ params }: { params: { name: string }
       <div className="grid grid-cols-3 gap-4">
         <MiniStat icon={<Layers className="h-4 w-4" />} label="Versions" value={versions.length} />
         <MiniStat icon={<Play className="h-4 w-4" />} label="Runs" value={runs.length} />
-        <MiniStat icon={<Box className="h-4 w-4" />} label="Runtime" value="Mock" />
+        <MiniStat icon={<Box className="h-4 w-4" />} label="Runtime" value={process.env.NEXT_PUBLIC_RUNTIME_DRIVER ?? 'docker'} />
       </div>
 
       {/* ── VERSIONS ── */}
@@ -96,7 +96,7 @@ export default async function AgentDetail({ params }: { params: { name: string }
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[13px] font-medium text-[var(--muted-foreground)]">Runs</h2>
-          <TriggerRunButton agentName={agent.name} disabled={versions.length === 0} />
+          <TriggerRunButton agentName={agent.name} versions={versions} disabled={versions.length === 0} />
         </div>
 
         {runs.length === 0 ? (
@@ -112,9 +112,10 @@ export default async function AgentDetail({ params }: { params: { name: string }
               <span className="text-right">Created</span>
             </div>
             {runs.map((r) => (
-              <div
+              <Link
                 key={r.id}
-                className="hover-row grid grid-cols-[120px_100px_80px_1fr] gap-4 border-t border-[var(--border)] px-4 py-3 text-sm transition-colors duration-200"
+                href={`/runs/${r.id}`}
+                className="hover-row grid grid-cols-[120px_100px_80px_1fr_40px] gap-4 border-t border-[var(--border)] px-4 py-3 text-sm transition-colors duration-200"
               >
                 <span className="flex items-center gap-2">
                   <StatusIndicator status={r.status} />
@@ -126,7 +127,8 @@ export default async function AgentDetail({ params }: { params: { name: string }
                   {new Date(r.createdAt).toLocaleString()}
                   {r.exitCode !== null ? ` · exit ${r.exitCode}` : ''}
                 </span>
-              </div>
+                <ChevronRight className="h-4 w-4 text-[var(--muted-foreground)] opacity-30" />
+              </Link>
             ))}
           </div>
         )}
