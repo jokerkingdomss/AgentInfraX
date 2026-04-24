@@ -25,6 +25,8 @@ public class AgentVersion {
 
     private String resources;    // jsonb, 存为 String，如 "{\"cpu\":\"500m\",\"memory\":\"512Mi\"}"
 
+    private Integer timeout;     // seconds, default 300
+
     @TableField(value = "\"createdAt\"", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }

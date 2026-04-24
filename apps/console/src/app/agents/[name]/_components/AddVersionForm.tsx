@@ -13,6 +13,7 @@ export function AddVersionForm({ agentName }: { agentName: string }) {
   const [pending, startTransition] = useTransition();
   const [version, setVersion] = useState('0.1.0');
   const [image, setImage] = useState('alpine:3.20');
+  const [timeout, setTimeoutVal] = useState('300');
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +25,7 @@ export function AddVersionForm({ agentName }: { agentName: string }) {
           entrypoint: [],
           env: {},
           resources: { cpu: '500m', memory: '512Mi' },
+          timeout: Number(timeout) || 300,
         });
         toast('success', `Version ${version} added`);
         router.refresh();
@@ -57,6 +59,17 @@ export function AddVersionForm({ agentName }: { agentName: string }) {
           required
           aria-required="true"
           className="bg-[var(--background)] font-mono text-sm"
+        />
+      </div>
+      <div className="flex-shrink-0">
+        <Label htmlFor="timeout" className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">Timeout (s)</Label>
+        <Input
+          id="timeout"
+          type="number"
+          value={timeout}
+          onChange={(e) => setTimeoutVal(e.target.value)}
+          min={0}
+          className="w-24 bg-[var(--background)] font-mono text-sm"
         />
       </div>
       <Button type="submit" disabled={pending} className="press-scale min-w-[64px]">

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "agent_versions" ADD COLUMN     "timeout" INTEGER NOT NULL DEFAULT 300;

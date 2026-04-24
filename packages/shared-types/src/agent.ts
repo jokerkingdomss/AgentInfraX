@@ -21,6 +21,7 @@ export const AgentManifestSchema = z.object({
   entrypoint: z.array(z.string()).default([]),
   env: z.record(z.string()).default({}),
   resources: ResourcesSchema.default({ cpu: '500m', memory: '512Mi' }),
+  timeout: z.number().int().min(0).default(300),
 });
 export type AgentManifest = z.infer<typeof AgentManifestSchema>;
 

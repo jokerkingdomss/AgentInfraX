@@ -76,7 +76,8 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
                 run.setContainerId(result.getContainerId());
                 run.setStartedAt(result.getStartedAt());
                 getBaseMapper().updateById(run);
-                pollUntilDone(run.getId());
+                int timeout = version.getTimeout() != null ? version.getTimeout() : 300;
+                pollUntilDone(run.getId(), timeout);
             } catch (Exception e) {
                 run.setStatus("failed");
                 run.setErrorMessage(e.getMessage());
@@ -131,9 +132,9 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
         return findOne(run.getId());
     }
 
-    void pollUntilDone(String runId) {
+    void pollUntilDone(String runId, int timeoutSeconds) {
         List<String> terminal = List.of("succeeded", "failed", "stopped");
-        for (int i = 0; i < 120; i++) {
+        for (int i = 0; i < timeoutSeconds; i++) {
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
@@ -155,6 +156,17 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
             run.setErrorMessage(h.getErrorMessage());
             getBaseMapper().updateById(run);
             if (terminal.contains(h.getStatus())) return;
+        }
+        // Timeout: stop container and mark as failed.
+        try {
+            dockerDriver.stop(runId);
+        } catch (Exception ignored) {}
+        Run run = getBaseMapper().selectById(runId);
+        if (run != null) {
+            run.setStatus("failed");
+            run.setFinishedAt(LocalDateTime.now());
+            run.setErrorMessage("Run timed out after " + timeoutSeconds + "s");
+            getBaseMapper().updateById(run);
         }
     }
 

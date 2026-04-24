@@ -31,6 +31,7 @@ model AgentVersion {
   entrypoint Json     @default("[]")
   env        Json     @default("{}")
   resources  Json     @default("{\"cpu\":\"500m\",\"memory\":\"512Mi\"}")
+  timeout    Int      @default(300)
   createdAt  DateTime @default(now())
 
   agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)

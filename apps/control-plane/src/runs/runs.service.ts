@@ -67,7 +67,7 @@ export class RunsService {
           },
         });
         // Poll driver until terminal state and sync DB.
-        void this.pollUntilDone(run.id);
+        void this.pollUntilDone(run.id, version.timeout);
       })
       .catch(async (err: Error) => {
         await this.prisma.run.update({
@@ -120,10 +120,10 @@ export class RunsService {
     return this.findOne(updated.id);
   }
 
-  private async pollUntilDone(runId: string): Promise<void> {
+  private async pollUntilDone(runId: string, timeoutSeconds = 300): Promise<void> {
     const terminal: RunStatus[] = ['succeeded', 'failed', 'stopped'];
-    // Simple loop with bounded attempts to avoid runaway.
-    for (let i = 0; i < 120; i++) {
+    const maxAttempts = timeoutSeconds;
+    for (let i = 0; i < maxAttempts; i++) {
       await new Promise((r) => setTimeout(r, 1000));
       // If the run was manually stopped, stop polling.
       const current = await this.prisma.run.findUnique({ where: { id: runId } });
@@ -145,6 +145,18 @@ export class RunsService {
       });
       if (terminal.includes(h.status)) return;
     }
+    // Timeout: stop the container and mark as failed.
+    try {
+      await this.driver.stop(runId);
+    } catch {}
+    await this.prisma.run.update({
+      where: { id: runId },
+      data: {
+        status: 'failed',
+        finishedAt: new Date(),
+        errorMessage: `Run timed out after ${timeoutSeconds}s`,
+      },
+    });
   }
 
   private toDto(r: {
