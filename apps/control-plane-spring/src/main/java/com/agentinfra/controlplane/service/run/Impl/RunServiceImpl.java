@@ -148,6 +148,7 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
             }
             Run run = getBaseMapper().selectById(runId);
             if (run == null) return;
+            if ("stopped".equals(run.getStatus())) return;
             run.setStatus(h.getStatus());
             run.setFinishedAt(h.getFinishedAt());
             run.setExitCode(h.getExitCode());
