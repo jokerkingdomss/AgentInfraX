@@ -3,6 +3,7 @@ import type { AgentManifest, CreateRunInput, RunDto, RunStatus } from '@agentinf
 import type { RuntimeDriver } from '@agentinfra/runtime-drivers';
 import { PrismaService } from '../prisma/prisma.service';
 import { RUNTIME_DRIVER } from './constants';
+import { RunLogsGateway } from './run-logs.gateway';
 
 @Injectable()
 export class RunsService {
@@ -11,6 +12,7 @@ export class RunsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(RUNTIME_DRIVER) private readonly driver: RuntimeDriver,
+    private readonly gateway: RunLogsGateway,
   ) {
     this.logger.log(`Using runtime driver: ${this.driver.name}`);
   }
@@ -53,6 +55,7 @@ export class RunsService {
         cpu: '500m',
         memory: '512Mi',
       },
+      timeout: version.timeout ?? 300,
     };
 
     void this.driver
@@ -66,6 +69,7 @@ export class RunsService {
             startedAt: h.startedAt ? new Date(h.startedAt) : null,
           },
         });
+        this.gateway.emitStatusUpdated(run.id, h.status);
         // Poll driver until terminal state and sync DB.
         void this.pollUntilDone(run.id, version.timeout);
       })
@@ -74,6 +78,7 @@ export class RunsService {
           where: { id: run.id },
           data: { status: 'failed', errorMessage: err.message, finishedAt: new Date() },
         });
+        this.gateway.emitStatusUpdated(run.id, 'failed');
       });
 
     return this.toDto({
@@ -117,6 +122,7 @@ export class RunsService {
       where: { id: runId },
       data: { status: 'stopped', finishedAt: new Date() },
     });
+    this.gateway.emitStatusUpdated(runId, 'stopped');
     return this.findOne(updated.id);
   }
 
@@ -143,6 +149,7 @@ export class RunsService {
           errorMessage: h.errorMessage ?? null,
         },
       });
+      this.gateway.emitStatusUpdated(runId, h.status);
       if (terminal.includes(h.status)) return;
     }
     // Timeout: stop the container and mark as failed.
@@ -157,6 +164,7 @@ export class RunsService {
         errorMessage: `Run timed out after ${timeoutSeconds}s`,
       },
     });
+    this.gateway.emitStatusUpdated(runId, 'failed');
   }
 
   private toDto(r: {

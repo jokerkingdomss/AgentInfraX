@@ -6,6 +6,7 @@ import { MockDriver } from './mock-driver';
 import { RUNTIME_DRIVER } from './constants';
 import { LogsController } from './logs.controller';
 import { LogsService } from './logs.service';
+import { RunLogsGateway } from './run-logs.gateway';
 import { RunsController } from './runs.controller';
 import { RunsService } from './runs.service';
 
@@ -14,6 +15,7 @@ import { RunsService } from './runs.service';
   providers: [
     RunsService,
     LogsService,
+    RunLogsGateway,
     MockDriver,
     {
       provide: RUNTIME_DRIVER,
@@ -28,6 +30,6 @@ import { RunsService } from './runs.service';
       inject: [ConfigService],
     },
   ],
-  exports: [RunsService],
+  exports: [RunsService, RunLogsGateway],
 })
 export class RunsModule {}
