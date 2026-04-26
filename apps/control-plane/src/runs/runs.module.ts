@@ -7,6 +7,7 @@ import { RUNTIME_DRIVER } from './constants';
 import { LogsController } from './logs.controller';
 import { LogsService } from './logs.service';
 import { RunLogsGateway } from './run-logs.gateway';
+import { RunEventsWatcher } from './run-events.watcher';
 import { RunsController } from './runs.controller';
 import { RunsService } from './runs.service';
 
@@ -16,6 +17,7 @@ import { RunsService } from './runs.service';
     RunsService,
     LogsService,
     RunLogsGateway,
+    RunEventsWatcher,
     MockDriver,
     {
       provide: RUNTIME_DRIVER,

@@ -1,6 +1,6 @@
 import Dockerode from 'dockerode';
 import type { AgentManifest } from '@agentinfra/shared-types';
-import type { RuntimeDriver, RuntimeHandle } from './index.js';
+import type { RuntimeDriver, RuntimeHandle, ContainerLifecycleEvent } from './index.js';
 
 /**
  * DockerDriver — runs agent containers via the local Docker daemon.
@@ -24,6 +24,13 @@ export class DockerDriver implements RuntimeDriver {
 
   /** Map runId → Docker container ID for tracking. */
   private readonly containerIds = new Map<string, string>();
+
+  /** Map containerId → runId for reverse lookup in events. */
+  private readonly runIds = new Map<string, string>();
+
+  /** Active event stream, if any. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private eventStream: any = null;
 
   constructor(opts?: DockerDriverOptions) {
     this.docker = new Dockerode(opts?.dockerOptions);
@@ -56,6 +63,7 @@ export class DockerDriver implements RuntimeDriver {
     });
 
     this.containerIds.set(runId, container.id);
+    this.runIds.set(container.id, runId);
     await container.start();
 
     return {
@@ -82,6 +90,7 @@ export class DockerDriver implements RuntimeDriver {
       // Best-effort removal.
     }
     this.containerIds.delete(runId);
+    this.runIds.delete(cid);
   }
 
   async status(runId: string): Promise<RuntimeHandle> {
@@ -132,6 +141,7 @@ export class DockerDriver implements RuntimeDriver {
       }
     }
     this.containerIds.delete(runId);
+    this.runIds.delete(cid);
 
     return handle;
   }
@@ -174,6 +184,55 @@ export class DockerDriver implements RuntimeDriver {
   }
 
   // ── Helpers ───────────────────────────────────────────
+
+  watchEvents(onEvent: (event: ContainerLifecycleEvent) => void): () => void {
+    // Listen for container events filtered by agentinfra labels.
+    const streamPromise = this.docker.getEvents({
+      filters: {
+        type: ['container'],
+        label: ['agentinfra.run-id'],
+      },
+    } as any) as unknown as Promise<any>;
+
+    streamPromise.then((s) => {
+      this.eventStream = s;
+      s.on('data', (chunk: Buffer) => {
+        try {
+          const evt = JSON.parse(chunk.toString('utf-8'));
+          const cid = evt.Actor?.ID as string | undefined;
+          if (!cid) return;
+          const action = evt.Action as string;
+          if (!action) return;
+
+          // Extract exit code from die/stop event attributes.
+          const exitCodeStr = evt.Actor?.Attributes?.exitCode as string | undefined;
+
+          onEvent({
+            containerId: cid,
+            action,
+            timestamp: new Date(evt.time * 1000).toISOString(),
+            exitCode: exitCodeStr !== undefined ? parseInt(exitCodeStr, 10) : undefined,
+          });
+        } catch {
+          // Malformed event — skip.
+        }
+      });
+    }).catch(() => {
+      // Event stream failed — fall back to polling.
+    });
+
+    return () => {
+      if (this.eventStream) {
+        this.eventStream.destroy();
+        this.eventStream = null;
+      }
+    };
+  }
+
+  /** Get the runId for a given container ID. */
+  getRunId(containerId: string): string | undefined {
+    return this.runIds.get(containerId);
+  }
 
   private async ensureImage(image: string): Promise<void> {
     try {

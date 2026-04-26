@@ -1,9 +1,11 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import type { AgentManifest, CreateRunInput, RunDto, RunStatus } from '@agentinfra/shared-types';
 import type { RuntimeDriver } from '@agentinfra/runtime-drivers';
+import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { RUNTIME_DRIVER } from './constants';
 import { RunLogsGateway } from './run-logs.gateway';
+import { RunEventsWatcher } from './run-events.watcher';
 
 @Injectable()
 export class RunsService {
@@ -13,6 +15,8 @@ export class RunsService {
     private readonly prisma: PrismaService,
     @Inject(RUNTIME_DRIVER) private readonly driver: RuntimeDriver,
     private readonly gateway: RunLogsGateway,
+    @Optional() private readonly eventsWatcher: RunEventsWatcher,
+    @Inject('REDIS') private readonly redis: Redis,
   ) {
     this.logger.log(`Using runtime driver: ${this.driver.name}`);
   }
@@ -69,9 +73,22 @@ export class RunsService {
             startedAt: h.startedAt ? new Date(h.startedAt) : null,
           },
         });
+        // Store containerId → runId mapping in Redis for event-driven lookups.
+        if (h.containerId) {
+          await this.redis.set(
+            `run:container:${h.containerId}`,
+            run.id,
+            'EX',
+            86400, // 24h TTL — containers shouldn't live longer.
+          );
+        }
         this.gateway.emitStatusUpdated(run.id, h.status);
-        // Poll driver until terminal state and sync DB.
-        void this.pollUntilDone(run.id, version.timeout);
+        // Use event-driven watcher if available, otherwise fall back to polling.
+        if (this.eventsWatcher) {
+          this.eventsWatcher.scheduleTimeout(run.id, version.timeout);
+        } else {
+          void this.pollUntilDone(run.id, version.timeout);
+        }
       })
       .catch(async (err: Error) => {
         await this.prisma.run.update({

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { AgentManifest } from '@agentinfra/shared-types';
-import type { RuntimeDriver, RuntimeHandle } from '@agentinfra/runtime-drivers';
+import type { RuntimeDriver, RuntimeHandle, ContainerLifecycleEvent } from '@agentinfra/runtime-drivers';
 
 /**
  * MockDriver — simulates agent lifecycle in-memory for M1a.
@@ -77,6 +77,11 @@ export class MockDriver implements RuntimeDriver {
       if (!opts?.follow || ['succeeded', 'failed', 'stopped'].includes(h.status)) break;
       await new Promise((r) => setTimeout(r, 1000));
     }
+  }
+
+  watchEvents(_onEvent: (event: ContainerLifecycleEvent) => void): () => void {
+    // Mock driver does not emit real container events.
+    return () => {};
   }
 
   private schedule(runId: string, ms: number, fn: () => void): void {
