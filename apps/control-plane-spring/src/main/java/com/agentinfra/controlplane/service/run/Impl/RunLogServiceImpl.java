@@ -6,6 +6,7 @@ import com.agentinfra.controlplane.entity.run.RunLog;
 import com.agentinfra.controlplane.mapper.run.RunLogMapper;
 import com.agentinfra.controlplane.mapper.run.RunMapper;
 import com.agentinfra.controlplane.service.run.RunLogService;
+import com.agentinfra.controlplane.service.run.RunLogsSocketService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -15,12 +16,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class RunLogServiceImpl extends ServiceImpl<RunLogMapper, RunLog> implements RunLogService {
 
     @Resource
     RunMapper runMapper;
+
+    @Resource
+    RunLogsSocketService socketService;
 
     @Override
     public RunLogResponse append(String runId, String level, String message) {
@@ -35,6 +40,14 @@ public class RunLogServiceImpl extends ServiceImpl<RunLogMapper, RunLog> impleme
         log.setLevel(level != null ? level : "info");
         log.setMessage(message);
         getBaseMapper().insert(log);
+
+        socketService.emitLogAppended(runId, Map.of(
+                "id", log.getId(),
+                "runId", log.getRunId(),
+                "level", log.getLevel(),
+                "message", log.getMessage(),
+                "createdAt", log.getCreatedAt() != null ? log.getCreatedAt().toString() : ""
+        ));
 
         return toDto(log);
     }

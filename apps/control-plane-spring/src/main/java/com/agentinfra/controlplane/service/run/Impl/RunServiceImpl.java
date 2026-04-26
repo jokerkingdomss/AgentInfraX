@@ -10,6 +10,7 @@ import com.agentinfra.controlplane.mapper.run.RunMapper;
 import com.agentinfra.controlplane.service.agent.AgentService;
 import com.agentinfra.controlplane.service.agent.AgentVersionService;
 import com.agentinfra.controlplane.service.run.RunService;
+import com.agentinfra.controlplane.service.run.RunLogsSocketService;
 import com.agentinfra.controlplane.utils.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -34,6 +35,9 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
 
     @Resource
     DockerDriver dockerDriver;
+
+    @Resource
+    RunLogsSocketService socketService;
 
     @Override
     public RunResponse create(String agentName, CreateRunRequest request) {
@@ -76,6 +80,7 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
                 run.setContainerId(result.getContainerId());
                 run.setStartedAt(result.getStartedAt());
                 getBaseMapper().updateById(run);
+                socketService.emitStatusUpdated(run.getId(), result.getStatus());
                 int timeout = version.getTimeout() != null ? version.getTimeout() : 300;
                 pollUntilDone(run.getId(), timeout);
             } catch (Exception e) {
@@ -83,6 +88,7 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
                 run.setErrorMessage(e.getMessage());
                 run.setFinishedAt(LocalDateTime.now());
                 getBaseMapper().updateById(run);
+                socketService.emitStatusUpdated(run.getId(), "failed");
             }
         });
 
@@ -129,6 +135,7 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
         run.setStatus("stopped");
         run.setFinishedAt(LocalDateTime.now());
         getBaseMapper().updateById(run);
+        socketService.emitStatusUpdated(runId, "stopped");
         return findOne(run.getId());
     }
 
@@ -155,6 +162,7 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
             run.setExitCode(h.getExitCode());
             run.setErrorMessage(h.getErrorMessage());
             getBaseMapper().updateById(run);
+            socketService.emitStatusUpdated(runId, h.getStatus());
             if (terminal.contains(h.getStatus())) return;
         }
         // Timeout: stop container and mark as failed.
@@ -167,6 +175,7 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
             run.setFinishedAt(LocalDateTime.now());
             run.setErrorMessage("Run timed out after " + timeoutSeconds + "s");
             getBaseMapper().updateById(run);
+            socketService.emitStatusUpdated(runId, "failed");
         }
     }
 

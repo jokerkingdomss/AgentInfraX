@@ -47,6 +47,13 @@
             <version>6.0.0</version>
         </dependency>
 
+        <!-- Socket.IO Server (Spring Boot Starter, compatible with socket.io-client v4) -->
+        <dependency>
+            <groupId>com.socketio4j</groupId>
+            <artifactId>netty-socketio-spring-boot-starter</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+
         <!-- Docker Java Client -->
         <dependency>
             <groupId>com.github.docker-java</groupId>

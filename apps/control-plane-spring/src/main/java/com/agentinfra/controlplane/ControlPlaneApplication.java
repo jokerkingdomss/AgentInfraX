@@ -1,10 +1,11 @@
 package com.agentinfra.controlplane;
 
+import com.corundumstudio.socketio.spring.boot.starter.auto.NettySocketIOAutoConfiguration;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = {NettySocketIOAutoConfiguration.class})
 @MapperScan("com.agentinfra.controlplane.mapper")
 public class ControlPlaneApplication {
 

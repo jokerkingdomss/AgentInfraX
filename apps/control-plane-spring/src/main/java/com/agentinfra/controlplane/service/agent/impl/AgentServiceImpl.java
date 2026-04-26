@@ -58,7 +58,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent> implements
         List<Agent> agents = getBaseMapper().selectList(new LambdaQueryWrapper<Agent>().orderByDesc(Agent::getCreatedAt));
 
         return agents.stream().map(a -> {
-            AgentVersion agentVersion = agentVersionService.getBaseMapper().selectOne(new LambdaQueryWrapper<AgentVersion>().eq(AgentVersion::getAgentId, a.getId()).orderByDesc(AgentVersion::getCreatedAt));
+            AgentVersion agentVersion = agentVersionService.getBaseMapper().selectOne(new LambdaQueryWrapper<AgentVersion>().eq(AgentVersion::getAgentId, a.getId()).orderByDesc(AgentVersion::getCreatedAt).last("LIMIT 1"));
             return CreateAgentResponse.builder()
                     .id(a.getId())
                     .name(a.getName())
