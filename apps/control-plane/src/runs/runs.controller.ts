@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CreateRunInputSchema, type CreateRunInput } from '@agentinfra/shared-types';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RunsService } from './runs.service';
@@ -18,6 +18,14 @@ export class RunsController {
   @Get('agents/:name/runs')
   listForAgent(@Param('name') name: string) {
     return this.runs.findByAgent(name);
+  }
+
+  @Get('runs')
+  findAll(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.runs.findAll(
+      limit ? parseInt(limit, 10) : 50,
+      offset ? parseInt(offset, 10) : 0,
+    );
   }
 
   @Get('runs/:id')

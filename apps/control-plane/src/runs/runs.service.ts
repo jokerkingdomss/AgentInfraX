@@ -101,6 +101,24 @@ export class RunsService {
     );
   }
 
+  async findAll(limit = 50, offset = 0): Promise<{ items: RunDto[]; total: number }> {
+    const [runs, total] = await Promise.all([
+      this.prisma.run.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: { agent: true, agentVersion: true },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.run.count(),
+    ]);
+    return {
+      items: runs.map((r) =>
+        this.toDto({ ...r, agentName: r.agent.name, agentVersion: r.agentVersion.version }),
+      ),
+      total,
+    };
+  }
+
   async findOne(runId: string): Promise<RunDto> {
     const run = await this.prisma.run.findUnique({
       where: { id: runId },

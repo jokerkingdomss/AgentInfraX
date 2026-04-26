@@ -2,6 +2,7 @@ package com.agentinfra.controlplane.service.run.Impl;
 
 import com.agentinfra.controlplane.driver.DockerDriver;
 import com.agentinfra.controlplane.dto.run.CreateRunRequest;
+import com.agentinfra.controlplane.dto.run.RunListResponse;
 import com.agentinfra.controlplane.dto.run.RunResponse;
 import com.agentinfra.controlplane.entity.agent.Agent;
 import com.agentinfra.controlplane.entity.agent.AgentVersion;
@@ -13,6 +14,7 @@ import com.agentinfra.controlplane.service.run.RunService;
 import com.agentinfra.controlplane.service.run.RunLogsSocketService;
 import com.agentinfra.controlplane.utils.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.annotation.Resource;
@@ -110,6 +112,23 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
             AgentVersion v = agentVersionService.getBaseMapper().selectById(r.getAgentVersionId());
             return toDto(r, agent.getName(), v != null ? v.getVersion() : null);
         }).toList();
+    }
+
+    @Override
+    public RunListResponse findAll(int limit, int offset) {
+        long page = (offset / limit) + 1;
+        Page<Run> runPage = new Page<>(page, limit);
+        LambdaQueryWrapper<Run> wrapper = new LambdaQueryWrapper<Run>()
+                .orderByDesc(Run::getCreatedAt);
+        Page<Run> result = getBaseMapper().selectPage(runPage, wrapper);
+        List<RunResponse> items = result.getRecords().stream().map(r -> {
+            Agent agent = agentService.getBaseMapper().selectById(r.getAgentId());
+            AgentVersion v = agentVersionService.getBaseMapper().selectById(r.getAgentVersionId());
+            return toDto(r,
+                    agent != null ? agent.getName() : null,
+                    v != null ? v.getVersion() : null);
+        }).toList();
+        return RunListResponse.builder().items(items).total(result.getTotal()).build();
     }
 
     @Override

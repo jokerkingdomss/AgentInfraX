@@ -46,6 +46,8 @@ export const api = {
     }),
 
   listRuns: (agentName: string) => request<RunDto[]>(`/agents/${agentName}/runs`),
+  listAllRuns: (limit = 50, offset = 0) =>
+    request<{ items: RunDto[]; total: number }>(`/runs?limit=${limit}&offset=${offset}`),
   createRun: (agentName: string, input: CreateRunInput = {}) =>
     request<RunDto>(`/agents/${agentName}/runs`, {
       method: 'POST',
