@@ -22,6 +22,8 @@ public class DockerDriver {
 
     private DockerClient dockerClient;
     private final Map<String, String> containerIds = new ConcurrentHashMap<>();
+    /** Map containerId → runId for reverse lookup in events. */
+    private final Map<String, String> runIds = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
@@ -74,6 +76,7 @@ public class DockerDriver {
         CreateContainerResponse container = createCmd.exec();
         String containerId = container.getId();
         containerIds.put(runId, containerId);
+        runIds.put(containerId, runId);
 
         dockerClient.startContainerCmd(containerId).exec();
         log.info("Container started: {} for run: {}", containerId.substring(0, 12), runId);
@@ -99,6 +102,7 @@ public class DockerDriver {
         } catch (Exception ignored) {
         }
         containerIds.remove(runId);
+        runIds.remove(cId);
     }
 
     private long parseCpu(String cpu) {
@@ -161,6 +165,16 @@ public class DockerDriver {
 
         containerIds.remove(runId);
         return result;
+    }
+
+    /** Get the runId for a given container ID. */
+    public String getRunId(String containerId) {
+        return runIds.get(containerId);
+    }
+
+    /** Expose DockerClient for event listeners. */
+    public DockerClient getDockerClient() {
+        return dockerClient;
     }
 
     @Data

@@ -12,12 +12,14 @@ import com.agentinfra.controlplane.service.agent.AgentService;
 import com.agentinfra.controlplane.service.agent.AgentVersionService;
 import com.agentinfra.controlplane.service.run.RunService;
 import com.agentinfra.controlplane.service.run.RunLogsSocketService;
+import com.agentinfra.controlplane.service.run.RunEventsListener;
 import com.agentinfra.controlplane.utils.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.annotation.Resource;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -40,6 +42,12 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
 
     @Resource
     RunLogsSocketService socketService;
+
+    @Resource
+    RunEventsListener eventsListener;
+
+    @Resource
+    StringRedisTemplate stringRedisTemplate;
 
     @Override
     public RunResponse create(String agentName, CreateRunRequest request) {
@@ -82,9 +90,16 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
                 run.setContainerId(result.getContainerId());
                 run.setStartedAt(result.getStartedAt());
                 getBaseMapper().updateById(run);
+                // Store containerId → runId mapping in Redis for event-driven lookups.
+                if (result.getContainerId() != null) {
+                    stringRedisTemplate.opsForValue().set(
+                            "run:container:" + result.getContainerId(),
+                            run.getId(),
+                            java.time.Duration.ofHours(24));
+                }
                 socketService.emitStatusUpdated(run.getId(), result.getStatus());
                 int timeout = version.getTimeout() != null ? version.getTimeout() : 300;
-                pollUntilDone(run.getId(), timeout);
+                eventsListener.scheduleTimeout(run.getId(), timeout);
             } catch (Exception e) {
                 run.setStatus("failed");
                 run.setErrorMessage(e.getMessage());
@@ -150,52 +165,12 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
         if (run == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "run " + runId + " not found");
         }
-        dockerDriver.stop(runId);
         run.setStatus("stopped");
         run.setFinishedAt(LocalDateTime.now());
         getBaseMapper().updateById(run);
         socketService.emitStatusUpdated(runId, "stopped");
+        dockerDriver.stop(runId);
         return findOne(run.getId());
-    }
-
-    void pollUntilDone(String runId, int timeoutSeconds) {
-        List<String> terminal = List.of("succeeded", "failed", "stopped");
-        for (int i = 0; i < timeoutSeconds; i++) {
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            DockerDriver.StatusResult h;
-            try {
-                h = dockerDriver.status(runId);
-            } catch (Exception e) {
-                return;
-            }
-            Run run = getBaseMapper().selectById(runId);
-            if (run == null) return;
-            if ("stopped".equals(run.getStatus())) return;
-            run.setStatus(h.getStatus());
-            run.setFinishedAt(h.getFinishedAt());
-            run.setExitCode(h.getExitCode());
-            run.setErrorMessage(h.getErrorMessage());
-            getBaseMapper().updateById(run);
-            socketService.emitStatusUpdated(runId, h.getStatus());
-            if (terminal.contains(h.getStatus())) return;
-        }
-        // Timeout: stop container and mark as failed.
-        try {
-            dockerDriver.stop(runId);
-        } catch (Exception ignored) {}
-        Run run = getBaseMapper().selectById(runId);
-        if (run != null) {
-            run.setStatus("failed");
-            run.setFinishedAt(LocalDateTime.now());
-            run.setErrorMessage("Run timed out after " + timeoutSeconds + "s");
-            getBaseMapper().updateById(run);
-            socketService.emitStatusUpdated(runId, "failed");
-        }
     }
 
     private RunResponse toDto(Run r, String agentName, String agentVersion) {

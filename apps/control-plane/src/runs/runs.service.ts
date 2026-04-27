@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AgentManifest, CreateRunInput, RunDto, RunStatus } from '@agentinfra/shared-types';
 import type { RuntimeDriver } from '@agentinfra/runtime-drivers';
 import Redis from 'ioredis';
@@ -15,7 +15,7 @@ export class RunsService {
     private readonly prisma: PrismaService,
     @Inject(RUNTIME_DRIVER) private readonly driver: RuntimeDriver,
     private readonly gateway: RunLogsGateway,
-    @Optional() private readonly eventsWatcher: RunEventsWatcher,
+    private readonly eventsWatcher: RunEventsWatcher,
     @Inject('REDIS') private readonly redis: Redis,
   ) {
     this.logger.log(`Using runtime driver: ${this.driver.name}`);
@@ -83,12 +83,7 @@ export class RunsService {
           );
         }
         this.gateway.emitStatusUpdated(run.id, h.status);
-        // Use event-driven watcher if available, otherwise fall back to polling.
-        if (this.eventsWatcher) {
-          this.eventsWatcher.scheduleTimeout(run.id, version.timeout);
-        } else {
-          void this.pollUntilDone(run.id, version.timeout);
-        }
+        this.eventsWatcher.scheduleTimeout(run.id, version.timeout);
       })
       .catch(async (err: Error) => {
         await this.prisma.run.update({
@@ -152,54 +147,15 @@ export class RunsService {
   async stop(runId: string): Promise<RunDto> {
     const run = await this.prisma.run.findUnique({ where: { id: runId } });
     if (!run) throw new NotFoundException(`run ${runId} not found`);
-    await this.driver.stop(runId);
+    // Update DB to 'stopped' BEFORE stopping container so events watcher
+    // sees the stopped status and skips overwriting with 'failed'.
     const updated = await this.prisma.run.update({
       where: { id: runId },
       data: { status: 'stopped', finishedAt: new Date() },
     });
     this.gateway.emitStatusUpdated(runId, 'stopped');
+    await this.driver.stop(runId);
     return this.findOne(updated.id);
-  }
-
-  private async pollUntilDone(runId: string, timeoutSeconds = 300): Promise<void> {
-    const terminal: RunStatus[] = ['succeeded', 'failed', 'stopped'];
-    const maxAttempts = timeoutSeconds;
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 1000));
-      // If the run was manually stopped, stop polling.
-      const current = await this.prisma.run.findUnique({ where: { id: runId } });
-      if (current?.status === 'stopped') return;
-      let h;
-      try {
-        h = await this.driver.status(runId);
-      } catch {
-        return;
-      }
-      await this.prisma.run.update({
-        where: { id: runId },
-        data: {
-          status: h.status,
-          finishedAt: h.finishedAt ? new Date(h.finishedAt) : null,
-          exitCode: h.exitCode ?? null,
-          errorMessage: h.errorMessage ?? null,
-        },
-      });
-      this.gateway.emitStatusUpdated(runId, h.status);
-      if (terminal.includes(h.status)) return;
-    }
-    // Timeout: stop the container and mark as failed.
-    try {
-      await this.driver.stop(runId);
-    } catch {}
-    await this.prisma.run.update({
-      where: { id: runId },
-      data: {
-        status: 'failed',
-        finishedAt: new Date(),
-        errorMessage: `Run timed out after ${timeoutSeconds}s`,
-      },
-    });
-    this.gateway.emitStatusUpdated(runId, 'failed');
   }
 
   private toDto(r: {
