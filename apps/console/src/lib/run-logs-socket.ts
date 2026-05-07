@@ -14,7 +14,7 @@ let socket: Socket | null = null;
 
 function getSocket(): Socket {
   if (!socket) {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3002/api';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL ?? apiUrl.replace(/\/api$/, '');
     socket = io(`${socketUrl}/runs`, { transports: ['polling', 'websocket'] });
   }

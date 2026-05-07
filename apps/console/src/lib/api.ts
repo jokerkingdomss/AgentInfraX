@@ -6,7 +6,7 @@ import type {
   RunDto,
 } from '@agentinfra/shared-types';
 
-const BASE = process.env.NEXT_PUBLIC_CONTROL_PLANE_URL ?? 'http://localhost:3002';
+const BASE = process.env.NEXT_PUBLIC_CONTROL_PLANE_URL ?? 'http://localhost:3001';
 const API = `${BASE}/api`;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

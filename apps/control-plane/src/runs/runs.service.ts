@@ -4,6 +4,7 @@ import type { RuntimeDriver } from '@agentinfra/runtime-drivers';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { RUNTIME_DRIVER } from './constants';
+import { LogsService } from './logs.service';
 import { RunLogsGateway } from './run-logs.gateway';
 import { RunEventsWatcher } from './run-events.watcher';
 
@@ -16,6 +17,7 @@ export class RunsService {
     @Inject(RUNTIME_DRIVER) private readonly driver: RuntimeDriver,
     private readonly gateway: RunLogsGateway,
     private readonly eventsWatcher: RunEventsWatcher,
+    private readonly logsService: LogsService,
     @Inject('REDIS') private readonly redis: Redis,
   ) {
     this.logger.log(`Using runtime driver: ${this.driver.name}`);
@@ -84,6 +86,8 @@ export class RunsService {
         }
         this.gateway.emitStatusUpdated(run.id, h.status);
         this.eventsWatcher.scheduleTimeout(run.id, version.timeout);
+        // Stream container stdout/stderr to logs in real time.
+        this.streamContainerLogs(run.id);
       })
       .catch(async (err: Error) => {
         await this.prisma.run.update({
@@ -156,6 +160,28 @@ export class RunsService {
     this.gateway.emitStatusUpdated(runId, 'stopped');
     await this.driver.stop(runId);
     return this.findOne(updated.id);
+  }
+
+  /**
+   * Stream container stdout/stderr via driver.logs({ follow: true }),
+   * line-by-line into LogsService.append() which persists to DB and
+   * broadcasts via Socket.IO. The async iterator ends when the container exits.
+   */
+  private streamContainerLogs(runId: string): void {
+    (async () => {
+      try {
+        for await (const chunk of this.driver.logs(runId, { follow: true })) {
+          // Docker may deliver multiple lines in one chunk; split them.
+          const lines = chunk.split('\n').filter((l) => l.length > 0);
+          for (const line of lines) {
+            await this.logsService.append(runId, 'info', line);
+          }
+        }
+      } catch (err) {
+        // Container may have already been removed — that's fine.
+        this.logger.debug(`Log stream ended for run ${runId.slice(0, 8)}…: ${(err as Error).message}`);
+      }
+    })();
   }
 
   private toDto(r: {
