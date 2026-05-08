@@ -105,23 +105,24 @@ export default async function AgentDetail({ params }: { params: { name: string }
           </div>
         ) : (
           <div className="overflow-hidden rounded-xl border border-[var(--border)]" style={{ boxShadow: 'var(--shadow-card)' }}>
-            <div className="grid grid-cols-[120px_100px_80px_1fr] gap-4 bg-[var(--secondary)] px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+            <div className="grid grid-cols-[120px_2fr_80px_1fr_40px] gap-4 bg-[var(--secondary)] px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
               <span>Status</span>
               <span>ID</span>
               <span>Version</span>
               <span className="text-right">Created</span>
+              <span></span>
             </div>
             {runs.map((r) => (
               <Link
                 key={r.id}
                 href={`/runs/${r.id}`}
-                className="hover-row grid grid-cols-[120px_100px_80px_1fr_40px] gap-4 border-t border-[var(--border)] px-4 py-3 text-sm transition-colors duration-200"
+                className="hover-row grid grid-cols-[120px_2fr_80px_1fr_40px] gap-4 border-t border-[var(--border)] px-4 py-3 text-sm transition-colors duration-200 items-center"
               >
                 <span className="flex items-center gap-2">
                   <StatusIndicator status={r.status} />
                   <span className="text-xs font-medium capitalize">{r.status}</span>
                 </span>
-                <span className="font-mono text-xs">{r.id.slice(0, 8)}</span>
+                <span className="font-mono text-xs">{r.id}</span>
                 <span className="text-xs text-[var(--muted-foreground)]">v{r.agentVersion}</span>
                 <span className="text-right text-xs text-[var(--muted-foreground)]">
                   {new Date(r.createdAt).toLocaleString()}

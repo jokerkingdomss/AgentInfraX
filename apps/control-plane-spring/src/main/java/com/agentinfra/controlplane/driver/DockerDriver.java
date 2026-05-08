@@ -9,9 +9,14 @@ import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import com.github.dockerjava.api.async.ResultCallback;
+import com.github.dockerjava.api.model.Frame;
+
+import java.io.Closeable;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,6 +25,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class DockerDriver {
 
+    /**
+     * -- GETTER --
+     * Expose DockerClient for event listeners.
+     */
+    @Getter
     private DockerClient dockerClient;
     private final Map<String, String> containerIds = new ConcurrentHashMap<>();
     /** Map containerId → runId for reverse lookup in events. */
@@ -172,9 +182,66 @@ public class DockerDriver {
         return runIds.get(containerId);
     }
 
-    /** Expose DockerClient for event listeners. */
-    public DockerClient getDockerClient() {
-        return dockerClient;
+    /**
+     * Stream container stdout/stderr in real time.
+     * Calls onLine for each line of output. Returns a Closeable to stop the stream.
+     * The stream ends automatically when the container exits.
+     */
+    public Closeable streamLogs(String runId, java.util.function.Consumer<String> onLine) {
+        String cid = containerIds.get(runId);
+        if (cid == null) {
+            log.warn("Cannot stream logs: no container for run {}", runId);
+            return () -> {};
+        }
+
+        ResultCallback<Frame> callback = new ResultCallback<>() {
+            private Closeable closeable;
+
+            @Override
+            public void close() {
+                if (closeable != null) {
+                    try { closeable.close(); } catch (Exception ignored) {}
+                }
+            }
+
+            @Override
+            public void onStart(Closeable closeable) {
+                this.closeable = closeable;
+            }
+
+            @Override
+            public void onNext(Frame frame) {
+                if (frame == null) return;
+                byte[] payload = frame.getPayload();
+                if (payload == null || payload.length == 0) return;
+                String text = new String(payload).trim();
+                if (!text.isEmpty()) {
+                    // Docker may deliver multiple lines in one frame
+                    for (String line : text.split("\n")) {
+                        if (!line.isBlank()) onLine.accept(line);
+                    }
+                }
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                log.debug("Log stream ended for run {}: {}", runId, throwable.getMessage());
+            }
+
+            @Override
+            public void onComplete() {
+                log.debug("Log stream completed for run {}", runId);
+            }
+        };
+
+        dockerClient.logContainerCmd(cid)
+                .withStdOut(true)
+                .withStdErr(true)
+                .withFollowStream(true)
+                .withTail(100)
+                .exec(callback);
+
+        return callback;
     }
 
     @Data

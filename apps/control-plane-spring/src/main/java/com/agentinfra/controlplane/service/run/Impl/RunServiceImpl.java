@@ -11,6 +11,7 @@ import com.agentinfra.controlplane.mapper.run.RunMapper;
 import com.agentinfra.controlplane.service.agent.AgentService;
 import com.agentinfra.controlplane.service.agent.AgentVersionService;
 import com.agentinfra.controlplane.service.run.RunService;
+import com.agentinfra.controlplane.service.run.RunLogService;
 import com.agentinfra.controlplane.service.run.RunLogsSocketService;
 import com.agentinfra.controlplane.service.run.RunEventsListener;
 import com.agentinfra.controlplane.utils.JSONUtil;
@@ -19,15 +20,20 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.Closeable;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Service
 public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunService {
 
@@ -47,7 +53,13 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
     RunEventsListener eventsListener;
 
     @Resource
+    RunLogService runLogService;
+
+    @Resource
     StringRedisTemplate stringRedisTemplate;
+
+    /** Active log streams per runId, closed on stop or container exit. */
+    private final Map<String, Closeable> logStreams = new ConcurrentHashMap<>();
 
     @Override
     public RunResponse create(String agentName, CreateRunRequest request) {
@@ -100,6 +112,15 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
                 socketService.emitStatusUpdated(run.getId(), result.getStatus());
                 int timeout = version.getTimeout() != null ? version.getTimeout() : 300;
                 eventsListener.scheduleTimeout(run.getId(), timeout);
+                // Stream container stdout/stderr to logs in real time.
+                Closeable logStream = dockerDriver.streamLogs(run.getId(), line -> {
+                    try {
+                        runLogService.append(run.getId(), "info", line);
+                    } catch (Exception e) {
+                        log.warn("Failed to append log for run {}: {}", run.getId(), e.getMessage());
+                    }
+                });
+                logStreams.put(run.getId(), logStream);
             } catch (Exception e) {
                 run.setStatus("failed");
                 run.setErrorMessage(e.getMessage());
@@ -164,6 +185,11 @@ public class RunServiceImpl extends ServiceImpl<RunMapper, Run> implements RunSe
         Run run = getBaseMapper().selectById(runId);
         if (run == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "run " + runId + " not found");
+        }
+        // Close log stream before stopping container.
+        Closeable logStream = logStreams.remove(runId);
+        if (logStream != null) {
+            try { logStream.close(); } catch (Exception ignored) {}
         }
         run.setStatus("stopped");
         run.setFinishedAt(LocalDateTime.now());

@@ -46,7 +46,7 @@ export function RunHeader({ runId, initialStatus, agentName, agentVersion }: { r
     <div className="mt-3 flex items-start justify-between">
       <div>
         <h1 className="text-[22px] font-semibold tracking-tight">
-          Run <span className="font-mono text-base">{runId.slice(0, 8)}</span>
+          Run <span className="font-mono text-base">{runId}</span>
         </h1>
         <div className="mt-1 flex items-center gap-3 text-[13px] text-[var(--muted-foreground)]">
           <span className="flex items-center gap-1.5">
